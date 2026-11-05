@@ -2,7 +2,8 @@ import streamlit as st
 
 st.set_page_config(page_title="Selección de la Liga de Campeones", layout="wide")
 
-CLAVE_CORRECTA = "1234"
+# Nueva clave de acceso
+CLAVE_CORRECTA = "LC1234"
 
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
@@ -11,7 +12,7 @@ if "jugadores_registrados" not in st.session_state:
 if "lista_jugadores" not in st.session_state:
     st.session_state.lista_jugadores = [f"Jugador {i}" for i in range(1, 21)]
 
-# 1. Página de Control de Acceso
+# 1. Control de Acceso
 if not st.session_state.autenticado:
     st.title("🏆 Selección de la Liga de Campeones")
     st.subheader("Control de Acceso")
@@ -25,55 +26,64 @@ if not st.session_state.autenticado:
         else:
             st.error("Clave incorrecta. Intente nuevamente.")
 
-# 2. Registro de los 20 jugadores
+# 2. Registro de Participantes (20 jugadores exactos)
 elif not st.session_state.jugadores_registrados:
     st.title("🏆 Registro de Participantes")
-    st.write("Ingrese los nombres de los exactamente **20 jugadores** para el torneo:")
+    st.write("Ingrese los nombres de los 20 jugadores:")
     
     nombres_temporales = []
+    cols = st.columns(2)
     for i in range(20):
-        nombre = st.text_input(f"Jugador {i+1}", value=st.session_state.lista_jugadores[i], key=f"j_{i}")
+        col = cols[i % 2]
+        nombre = col.text_input(f"Jugador {i+1}", value=st.session_state.lista_jugadores[i], key=f"j_{i}")
         nombres_temporales.append(nombre)
         
     if st.button("Guardar Jugadores e Iniciar Torneo"):
-        if len([n for n in nombres_temporales if n.strip() == ""]) > 0:
-            st.error("Por favor, asegúrese de que todos los 20 campos tengan un nombre válido.")
+        if any(n.strip() == "" for n in nombres_temporales):
+            st.error("Por favor, asegúrese de completar los 20 nombres.")
         else:
-        # Actualizamos la lista con los nombres introducidos
             st.session_state.lista_jugadores = nombres_temporales
             st.session_state.jugadores_registrados = True
             st.rerun()
 
-# 3. Panel Principal del Torneo (Mesas y Parejas)
+# 3. Panel del Torneo
 else:
-    st.title("🏆 Selección de la Liga de Campeones - Panel del Torneo")
-    st.success("¡Torneo activo con 20 jugadores configurados!")
+    st.title("🏆 Selección de la Liga de Campeones")
     
-    menu = st.radio("Seleccione una sección:", ["Ver Mesas", "Ver Parejas y Anotar Resultados"], horizontal=True)
+    menu = st.radio("Seleccione una opción:", ["Ver Mesas", "Ver Parejas y Anotar Resultados"], horizontal=True)
     
     if menu == "Ver Mesas":
-        st.subheader("🪑 Distribución en las 5 Mesas (Ronda Actual)")
-        st.write("Aquí se visualizará cómo van ubicados los jugadores en las 4 o 5 mesas según corresponda.")
+        st.subheader("🪑 Distribución en las 5 Mesas")
         
-        # Ejemplo visual preliminar de las 5 mesas (4 jugadores por mesa)
-        for m in range(1, 6):
-            inicio = (m - 1) * 4
-            fin = m * 4
+        cols = st.columns(5)
+        for m in range(5):
+            inicio = m * 4
+            fin = inicio + 4
             jugadores_mesa = st.session_state.lista_jugadores[inicio:fin]
-            st.info(f"**Mesa {m}**: " + ", ".join(jugadores_mesa))
+            
+            with cols[m]:
+                st.markdown(f"### Mesa {m+1}")
+                for idx, j in enumerate(jugadores_mesa, 1):
+                    st.info(f"**P{idx}:** {j}")
             
     elif menu == "Ver Parejas y Anotar Resultados":
-        st.subheader("⚔️ Parejas de Enfrentamiento y Anotación")
-        st.write("Aquí se mostrarán las parejas formadas para la ronda y los botones para registrar los puntajes.")
+        st.subheader("⚔️ Parejas y Anotación de Puntajes")
         
-        # Muestra rápida de parejas base para la ronda
-        for m in range(1, 6):
-            inicio = (m - 1) * 4
+        for m in range(5):
+            inicio = m * 4
+            fin = inicio + 4
             j = st.session_state.lista_jugadores[inicio:fin]
-            st.write(f"**Mesa {m}**: [ {j[0]} y {j[1]} ] vs [ {j[2]} y {j[3]} ]")
-            st.text_input(f"Resultado Mesa {m} (Ej: Ganan 1 y 2)", key=f"res_mesa_{m}")
+            
+            with st.container():
+                st.markdown(f"#### Mesa {m+1}")
+                st.write(f"🤝 **Pareja 1:** {j[0]} y {j[1]}")
+                st.write(f"🤝 **Pareja 2:** {j[2]} y {j[3]}")
+                
+                col1, col2 = st.columns(2)
+                col1.number_input(f"Puntos Pareja 1 (Mesa {m+1})", min_value=0, step=1, key=f"p1_m{m+1}")
+                col2.number_input(f"Puntos Pareja 2 (Mesa {m+1})", min_value=0, step=1, key=f"p2_m{m+1}")
+                st.divider()
             
     if st.button("Reiniciar Registro de Jugadores"):
         st.session_state.jugadores_registrados = False
         st.rerun()
-      

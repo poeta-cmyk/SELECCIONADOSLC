@@ -22,13 +22,13 @@ if not st.session_state.authenticated:
     if st.button("Ingresar"):
         if password == "LC1234":
             st.session_state.authenticated = True
-            st.session_state.step = "register"
+            st.session_state.step = "round_1"
             st.rerun()
         else:
             st.error("Clave incorrecta. Intente de nuevo.")
 
-# --- PANTALLA 2: REGISTRO DE 20 JUGADORES (2 Columnas) ---
-elif st.session_state.step == "register":
+# --- PANTALLA 2: REGISTRO DE 20 JUGADORES (Si no están inicializados) ---
+elif not st.session_state.players and st.session_state.step.startswith("round_"):
     st.title("Selección de la Liga de Campeones - Registro de Jugadores")
     st.write("Ingrese los nombres de los 20 participantes:")
 
@@ -45,7 +45,7 @@ elif st.session_state.step == "register":
         for i in range(11, 21):
             player_names[f"J{i}"] = st.text_input(f"J{i}", value=f"Jugador {i}", key=f"name_J{i}")
 
-    if st.button("Generar la primera ronda"):
+    if st.button("Guardar jugadores y generar primera ronda"):
         st.session_state.players = {
             name: {
                 "name": name,
@@ -59,14 +59,12 @@ elif st.session_state.step == "register":
             for name in player_names.values()
         }
         st.session_state.player_keys = list(player_names.values())
-        st.session_state.round_num = 1
-        st.session_state.step = "round_1"
         st.rerun()
 
 # --- MOTOR DE RONDAS Y AMONESTADOS ---
 elif st.session_state.step.startswith("round_"):
     r_num = st.session_state.round_num
-    st.title(f"Selección de la Liga de Campeones - Ronda {r_num}")
+    st.title(f"Selección de la Liga de Campeones - Ronda {r_num} de 6")
 
     # Sección Amonestados (Desplegable)
     with st.expander("⚠️ Jugadores Amonestados (Desplegar para señalar infracciones en esta ronda)"):
@@ -79,17 +77,16 @@ elif st.session_state.step.startswith("round_"):
     st.subheader(f"Emparejamientos - Ronda {r_num}")
 
     # Lógica de emparejamiento estricta por ranking
-    if r_num == 1:
-        if f"tables_r{r_num}" not in st.session_state:
+    table_key_cache = f"tables_r{r_num}"
+    if table_key_cache not in st.session_state:
+        if r_num == 1:
             shuffled = list(st.session_state.player_keys)
             random.shuffle(shuffled)
-            st.session_state[f"tables_r{r_num}"] = [
+            st.session_state[table_key_cache] = [
                 [shuffled[i], shuffled[i+1], shuffled[i+2], shuffled[i+3]]
                 for i in range(0, 20, 4)
             ]
-        current_tables = st.session_state[f"tables_r{r_num}"]
-    else:
-        if f"tables_r{r_num}" not in st.session_state:
+        else:
             sorted_players = sorted(
                 st.session_state.players.values(),
                 key=lambda x: (x["jg"], x["diff"]),
@@ -118,9 +115,9 @@ elif st.session_state.step.startswith("round_"):
 
                 current_tables.append([p1, selected_p2, p3, p4])
 
-            st.session_state[f"tables_r{r_num}"] = current_tables
+            st.session_state[table_key_cache] = current_tables
 
-        current_tables = st.session_state[f"tables_r{r_num}"]
+    current_tables = st.session_state[table_key_cache]
 
     # Captura de resultados por mesa
     table_results = []
@@ -142,7 +139,7 @@ elif st.session_state.step.startswith("round_"):
         })
         st.divider()
 
-    btn_label = "Generar el Ranking" if r_num == 6 else f"Generar la ronda {r_num + 1}"
+    btn_label = "Generar el Ranking Final" if r_num == 6 else f"Procesar Ronda {r_num} y Avanzar"
     if st.button(btn_label):
         for tr in table_results:
             pA1, pA2 = tr["pair_a"]
@@ -206,13 +203,13 @@ elif st.session_state.step.startswith("round_"):
                 for p in [pA1, pA2, pB1, pB2]:
                     st.session_state.players[p]["jp"] += 1
 
-    if r_num < 6:
-        st.session_state.round_num += 1
-        st.session_state.step = f"round_{st.session_state.round_num}"
-        st.rerun()
-    else:
-        st.session_state.step = "ranking"
-        st.rerun()
+        if r_num < 6:
+            st.session_state.round_num += 1
+            st.session_state.step = f"round_{st.session_state.round_num}"
+            st.rerun()
+        else:
+            st.session_state.step = "ranking"
+            st.rerun()
 
 # --- PANTALLA 3: RANKING FINAL Y ANIMACIÓN ---
 elif st.session_state.step == "ranking":

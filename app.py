@@ -49,7 +49,7 @@ elif not st.session_state.jugadores_registrados:
             st.session_state.jugadores_registrados = True
             st.rerun()
 
-# 3. Función de Rotación para evitar repetir parejas
+# 3. Función de Rotación
 def obtener_emparejamientos_ronda(jugadores, ronda):
     n = len(jugadores)
     idx = list(range(n))
@@ -121,8 +121,7 @@ else:
                     else:
                         st.session_state.ronda_actual = 7
                         st.rerun()
-    
-    # Pantalla Final (Ronda > 6)
+                        
     if ronda > 6:
         st.title("🏆 Torneo Finalizado - Resultados Generales")
         st.success("¡Se han completado las 6 rondas del torneo de forma exitosa!")

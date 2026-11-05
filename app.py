@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="Selección de la Liga de Campeones", layout="centered")
+st.set_page_config(page_title="Selección de la Liga de Campeones", layout="wide")
 
 CLAVE_CORRECTA = "LC1234"
 
@@ -59,15 +59,21 @@ else:
         
         if seccion == "Ver Posiciones en las Mesas":
             st.subheader(f"🪑 Distribución en las 5 Mesas - Ronda {ronda}")
-            cols = st.columns(5)
+            
+            # Mostramos las mesas en bloques ordenados (por ejemplo, de 3 y 2, o en contenedores limpios)
             for m in range(5):
                 inicio = m * 4
                 fin = inicio + 4
                 jugadores_mesa = st.session_state.lista_jugadores[inicio:fin]
-                with cols[m]:
-                    st.markdown(f"### Mesa {m+1}")
-                    for idx, j in enumerate(jugadores_mesa, 1):
-                        st.info(f"**P{idx}:** {j}")
+                
+                with st.container():
+                    st.markdown(f"### 🪑 Mesa {m+1}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.info(f"**P1:** {jugadores_mesa[0]}")
+                    c2.info(f"**P2:** {jugadores_mesa[1]}")
+                    c3.info(f"**P3:** {jugadores_mesa[2]}")
+                    c4.info(f"**P4:** {jugadores_mesa[3]}")
+                    st.divider()
                         
         elif seccion == "Anotar Puntos de la Ronda":
             st.subheader(f"⚔️ Anotación de Puntos - Ronda {ronda}")

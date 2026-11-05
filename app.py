@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Selección de la Liga de Campeones", layout="wide")
 
@@ -48,19 +49,14 @@ elif not st.session_state.jugadores_registrados:
             st.session_state.jugadores_registrados = True
             st.rerun()
 
-# 3. Función de Rotación para evitar repetir parejas (Algoritmo Circle Method adaptado para 20 jugadores / 5 mesas)
+# 3. Función de Rotación para evitar repetir parejas
 def obtener_emparejamientos_ronda(jugadores, ronda):
-    # jugadores es una lista de 20 elementos
-    # Fijamos el primer jugador y rotamos los otros 19 para generar rondas equilibradas
     n = len(jugadores)
     idx = list(range(n))
-    
-    # Rotación basada en la ronda actual
     shift = (ronda - 1) % (n - 1)
     if shift > 0:
         idx = [idx[0]] + idx[1:][-shift:] + idx[1:][:-shift]
     
-    # Dividir en 5 mesas de 4 jugadores
     mesas = []
     for m in range(5):
         m_idx = idx[m*4 : (m+1)*4]
@@ -127,12 +123,11 @@ else:
                         st.rerun()
     
     # Pantalla Final (Ronda > 6)
-    else:
+    if ronda > 6:
         st.title("🏆 Torneo Finalizado - Resultados Generales")
         st.success("¡Se han completado las 6 rondas del torneo de forma exitosa!")
         st.subheader("📊 Tabla de Posiciones Finales")
         
-        # Cálculo de estadísticas por jugador (JJ, JG, JP, Average, Diferencia)
         stats = {j: {"JJ": 6, "JG": 0, "JP": 0, "PF": 0, "PC": 0} for j in st.session_state.lista_jugadores}
         
         for r_num in range(1, 7):
@@ -145,13 +140,11 @@ else:
                     p2_pts = res_r[m]["p2"]
                     j = mesas_r[m]
                     
-                    # Pareja 1: j[0], j[1]
                     stats[j[0]]["PF"] += p1_pts
                     stats[j[0]]["PC"] += p2_pts
                     stats[j[1]]["PF"] += p1_pts
                     stats[j[1]]["PC"] += p2_pts
                     
-                    # Pareja 2: j[2], j[3]
                     stats[j[2]]["PF"] += p2_pts
                     stats[j[2]]["PC"] += p1_pts
                     stats[j[3]]["PF"] += p2_pts
@@ -164,6 +157,26 @@ else:
                         stats[j[2]]["JG"] += 1; stats[j[3]]["JG"] += 1
                         stats[j[0]]["JP"] += 1; stats[j[1]]["JP"] += 1
 
-        # Mostrar tabla en pantalla
         tabla_final = []
-        for j, data
+        for j, data in stats.items():
+            dif = data["PF"] - data["PC"]
+            avg = (data["PF"] / data["PC"]) if data["PC"] > 0 else data["PF"]
+            tabla_final.append({
+                "Jugador": j,
+                "JJ": data["JJ"],
+                "JG": data["JG"],
+                "JP": data["JP"],
+                "Puntos Favor": data["PF"],
+                "Puntos Contra": data["PC"],
+                "Diferencia": dif,
+                "Average": round(avg, 3)
+            })
+        
+        df_final = pd.DataFrame(tabla_final).sort_values(by=["JG", "Diferencia", "Average"], ascending=False).reset_index(drop=True)
+        st.dataframe(df_final, use_container_width=True)
+        
+        if st.button("Reiniciar Torneo Completo"):
+            st.session_state.jugadores_registrados = False
+            st.session_state.ronda_actual = 1
+            st.session_state.resultados_rondas = {}
+            st.rerun()

@@ -64,7 +64,7 @@ def obtener_emparejamientos_ronda(jugadores, ronda):
         mesas.append(mesa_jugadores)
     return mesas
 
-# 4. Desarrollo del Torneo (6 Rondas)
+# 4. Desarrollo del Torneo (Rondas 1 a 6 y Final)
 else:
     ronda = st.session_state.ronda_actual
     

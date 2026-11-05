@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="Selección de la Liga de Campeones", layout="wide")
+st.set_page_config(page_title="Selección de la Liga de Campeones", layout="centered")
 
 CLAVE_CORRECTA = "LC1234"
 
@@ -36,10 +36,8 @@ elif not st.session_state.jugadores_registrados:
     st.write("Ingrese los nombres de los jugadores:")
     
     nombres_temporales = []
-    cols = st.columns(2)
     for i in range(20):
-        col = cols[i % 2]
-        nombre = col.text_input(f"Jugador {i+1}", value=st.session_state.lista_jugadores[i], key=f"j_{i}")
+        nombre = st.text_input(f"Jugador {i+1}", value=st.session_state.lista_jugadores[i], key=f"j_{i}")
         nombres_temporales.append(nombre)
         
     if st.button("Guardar Jugadores e Iniciar Torneo"):
@@ -53,10 +51,10 @@ elif not st.session_state.jugadores_registrados:
 # 3. Desarrollo del Torneo (6 Rondas)
 else:
     ronda = st.session_state.ronda_actual
-    st.title(f"🏆 Selección de la Liga de Campeones - Ronda {ronda} de 6")
     
     if ronda <= 6:
-        # Pestañas de navegación o botones de sección
+        st.title(f"🏆 Ronda {ronda} de 6")
+        
         seccion = st.radio("Seleccione una sección:", ["Ver Posiciones en las Mesas", "Anotar Puntos de la Ronda"], horizontal=True)
         
         if seccion == "Ver Posiciones en las Mesas":
@@ -91,7 +89,6 @@ else:
                 guardar_ronda = st.form_submit_button(f"Guardar Ronda {ronda} y Generar Siguiente")
                 
                 if guardar_ronda:
-                    # Guardar datos de la ronda actual
                     datos_ronda = {}
                     for m in range(5):
                         p1 = st.session_state.get(f"r{ronda}_m{m+1}_p1", 0)
@@ -102,23 +99,19 @@ else:
                     
                     if ronda < 6:
                         st.session_state.ronda_actual += 1
-                        st.success(f"¡Ronda {ronda} guardada con éxito! Pasando a la siguiente ronda.")
+                        st.success(f"¡Ronda {ronda} guardada con éxito! Generando ronda siguiente.")
                         st.rerun()
                     else:
-                        st.session_state.ronda_actual = 7 # Fin del torneo
+                        st.session_state.ronda_actual = 7
                         st.rerun()
     
-    # Al finalizar la ronda 6 (Pantalla Final)
-    if st.session_state.ronda_actual > 6:
-        st.success("🎉 ¡Torneo Finalizado! A continuación la tabla general de resultados.")
+    # Pantalla Final (Ronda > 6)
+    else:
+        st.title("🏆 Torneo Finalizado - Resultados Generales")
+        st.success("¡Se han completado las 6 rondas del torneo!")
         st.subheader("📊 Tabla de Posiciones Finales")
         
-        # Calcular estadísticas generales por jugador (JJ, JG, JP, Average, Diferencia)
-        tabla_stats = {j: {"JJ": 6, "JG": 0, "JP": 0, "Puntos_Favor": 0, "Puntos_Contra": 0} for j in st.session_state.lista_jugadores}
-        
-        # Procesar resultados acumulados
-            
-        st.write("Tabla general de rendimiento consolidada de los 20 jugadores en las 6 rondas.")
+        st.write("Aquí se mostrará la lista consolidada con JJ, JG, JP, Average y diferencia.")
         
         if st.button("Reiniciar Torneo Completo"):
             st.session_state.jugadores_registrados = False

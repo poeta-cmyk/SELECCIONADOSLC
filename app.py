@@ -139,14 +139,14 @@ elif st.session_state.step.startswith("round_"):
         if "order" not in st.session_state.players[p_name]:
             st.session_state.players[p_name]["order"] = 999
 
-    # Botón de Ranking Acumulado accesible en todo momento
+    # Botón de Ranking Acumulado accesible en todo momento (con altura de 400 para mostrar los 20 jugadores)
     with st.expander("📊 Ver Ranking y Tabla de Posiciones Acumulada"):
         sorted_preview = sorted(
             st.session_state.players.values(),
             key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))
         )
-        preview_data = [{"Pos": i+1, "Jugador": p["name"], "JG": p["jg"], "JP": p["jp"], "P(+)": p["p_plus"], "P(-)": p["p_minus"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
-        st.dataframe(preview_data, use_container_width=True)
+        preview_data = [{"Pos": i+1, "Jugador": p["name"], "JJ": p["jj"], "JG": p["jg"], "JP": p["jp"], "P(+)": p["p_plus"], "P(-)": p["p_minus"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
+        st.dataframe(preview_data, use_container_width=True, height=400)
 
     # Sección Amonestados con monto libre/personalizado
     with st.expander("⚠️ Jugadores Amonestados (Desplegar para registrar descuentos personalizados en esta ronda)"):
@@ -181,11 +181,10 @@ elif st.session_state.step.startswith("round_"):
             current_tables = []
             for m in range(5):
                 table_group = ranked_names[m*4 : (m*4)+4]
-                # Estricto: 1º con 3º vs 2º con 4º
-                p1 = table_group[0] # 1ro
-                p2 = table_group[1] # 2do
-                p3 = table_group[2] # 3ro
-                p4 = table_group[3] # 4to
+                p1 = table_group[0]
+                p2 = table_group[1]
+                p3 = table_group[2]
+                p4 = table_group[3]
 
                 # Control de repetición de pareja
                 if frozenset([p1, p3]) in st.session_state.history_pairs or frozenset([p2, p4]) in st.session_state.history_pairs:
@@ -199,7 +198,6 @@ elif st.session_state.step.startswith("round_"):
                                 p2, p4 = remaining[0], remaining[1]
                                 break
 
-                # Guardamos ordenados para que en la mesa se muestren exactamente: Pareja A (p1 & p3) vs Pareja B (p2 & p4)
                 current_tables.append([p1, p3, p2, p4])
 
             st.session_state[table_key_cache] = current_tables
@@ -367,7 +365,7 @@ elif st.session_state.step == "ranking":
             "Dif": p["diff"]
         })
 
-    st.dataframe(table_data, use_container_width=True)
+    st.dataframe(table_data, use_container_width=True, height=500)
 
     if st.button("⬅️ Volver a la Ronda 6 para consultar o modificar datos"):
         st.session_state.round_num = 6

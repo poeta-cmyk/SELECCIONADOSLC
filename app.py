@@ -14,6 +14,8 @@ if "round_num" not in st.session_state:
     st.session_state.round_num = 1
 if "history_pairs" not in st.session_state:
     st.session_state.history_pairs = []
+if "penalties_history" not in st.session_state:
+    st.session_state.penalties_history = {}
 
 # --- PANTALLA 1: ACCESO ---
 if not st.session_state.authenticated:
@@ -126,12 +128,27 @@ elif st.session_state.step.startswith("round_"):
     r_num = st.session_state.round_num
     st.title(f"Selección de la Liga de Campeones - Ronda {r_num} de 6")
 
-    # Sección Amonestados (Desplegable)
-    with st.expander("⚠️ Jugadores Amonestados (Desplegar para señalar infracciones en esta ronda)"):
-        st.write("Marque los jugadores que cometieron falta en esta ronda (-20 P(+) individuales):")
+    # Botón de Ranking Acumulado accesible en todo momento
+    with st.expander("📊 Ver Ranking y Tabla de Posiciones Acumulada"):
+        sorted_preview = sorted(
+            st.session_state.players.values(),
+            key=lambda x: (x["jg"], x["diff"]),
+            reverse=True
+        )
+        preview_data = [{"Pos": i+1, "Jugador": p["name"], "JG": p["jg"], "JP": p["jp"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
+        st.dataframe(preview_data, use_container_width=True)
+
+    # Sección Amonestados con monto libre/personalizado
+    with st.expander("⚠️ Jugadores Amonestados (Desplegar para registrar descuentos personalizados en esta ronda)"):
+        st.write("Anote el monto exacto del descuento en puntos para cada jugador infractor en esta ronda:")
         round_penalties = {}
-        for p in st.session_state.player_keys:
-            round_penalties[p] = st.checkbox(p, key=f"pen_{r_num}_{p}")
+        cols_pen = st.columns(4)
+        for idx_p, p in enumerate(st.session_state.player_keys):
+            with cols_pen[idx_p % 4]:
+                current_val = st.session_state.get("penalties_history", {}).get(r_num, {}).get(p, 0)
+                pen_val = st.number_input(f"{p}", min_value=0, max_value=200, value=current_val, step=5, key=f"pen_{r_num}_{p}")
+                if pen_val > 0:
+                    round_penalties[p] = pen_val
 
     st.divider()
     st.subheader(f"Emparejamientos - Ronda {r_num}")
@@ -156,57 +173,84 @@ elif st.session_state.step.startswith("round_"):
             current_tables = []
             for m in range(5):
                 table_group = ranked_names[m*4 : (m*4)+4]
+                # Emparejamiento interno estricto: 1º con 3º y 2º con 4º
                 p1 = table_group[0]
-                candidates = table_group[1:]
-                
-                selected_p2 = None
-                if r_num >= 4:
-                    for cand in candidates:
-                        if {p1, cand} not in st.session_state.history_pairs:
-                            selected_p2 = cand
-                            break
-                
-                if not selected_p2:
-                    selected_p2 = candidates[0]
-                
-                rest = [c for c in candidates if c != selected_p2]
-                p3, p4 = rest[0], rest[1]
+                p2 = table_group[1]
+                p3 = table_group[2]
+                p4 = table_group[3]
 
-                current_tables.append([p1, selected_p2, p3, p4])
+                # Control de repetición de pareja (Swiss pairing refinement)
+                if frozenset([p1, p3]) in st.session_state.history_pairs or frozenset([p2, p4]) in st.session_state.history_pairs:
+                    # Buscar alternativa en el grupo o intercambiar
+                    for alt_idx in range(len(table_group)):
+                        for alt_idx2 in range(alt_idx + 1, len(table_group)):
+                            cand1 = table_group[alt_idx]
+                            cand2 = table_group[alt_idx2]
+                            if frozenset([cand1, cand2]) not in st.session_state.history_pairs:
+                                p1, p3 = cand1, cand2
+                                remaining = [x for x in table_group if x not in [p1, p3]]
+                                p2, p4 = remaining[0], remaining[1]
+                                break
+
+                current_tables.append([p1, p3, p2, p4])
 
             st.session_state[table_key_cache] = current_tables
 
     current_tables = st.session_state[table_key_cache]
 
-    # Captura de resultados por mesa
-    table_results = []
-    for t_idx, table in enumerate(current_tables):
-        st.markdown(f"### Mesa {t_idx + 1}")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.text(f"Pareja A: {table[0]} & {table[1]}")
-            score_a = st.number_input(f"Puntos Pareja A (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_a_{r_num}_{t_idx}")
-        with col_b:
-            st.text(f"Pareja B: {table[2]} & {table[3]}")
-            score_b = st.number_input(f"Puntos Pareja B (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_b_{r_num}_{t_idx}")
-        
-        table_results.append({
-            "pair_a": [table[0], table[1]],
-            "score_a": score_a,
-            "pair_b": [table[2], table[3]],
-            "score_b": score_b
-        })
-        st.divider()
+    # Captura de resultados por mesa dentro de un formulario para incluir los botones simétricos
+    with st.form(key=f"form_round_{r_num}"):
+        table_results = []
+        for t_idx, table in enumerate(current_tables):
+            st.markdown(f"### Mesa {t_idx + 1}")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.text(f"Pareja A: {table[0]} & {table[1]}")
+                score_a = st.number_input(f"Puntos Pareja A (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_a_{r_num}_{t_idx}")
+            with col_b:
+                st.text(f"Pareja B: {table[2]} & {table[3]}")
+                score_b = st.number_input(f"Puntos Pareja B (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_b_{r_num}_{t_idx}")
+            
+            table_results.append({
+                "pair_a": [table[0], table[1]],
+                "score_a": score_a,
+                "pair_b": [table[2], table[3]],
+                "score_b": score_b
+            })
+            st.divider()
 
-    btn_label = "Generar el Ranking Final" if r_num == 6 else f"Procesar Ronda {r_num} y Avanzar"
-    if st.button(btn_label):
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Botones simétricos: Retroceso al lado de Avanzar
+        col_back, col_space, col_next = st.columns([2, 1, 2])
+        
+        with col_back:
+            btn_back = st.form_submit_button("⬅️ Volver a la Ronda Anterior") if r_num > 1 else False
+
+        with col_next:
+            btn_label = "Generar el Ranking Final" if r_num == 6 else f"Procesar Ronda {r_num} y Avanzar"
+            btn_next_action = st.form_submit_button(f"{btn_label} ➡️")
+
+    # Procesar lógica de retroceso
+    if btn_back:
+        st.session_state.round_num -= 1
+        st.session_state.step = f"round_{st.session_state.round_num}"
+        st.rerun()
+
+    # Procesar avance de ronda
+    if btn_next_action:
+        # Guardar amonestaciones de la ronda
+        if "penalties_history" not in st.session_state:
+            st.session_state.penalties_history = {}
+        st.session_state.penalties_history[r_num] = round_penalties
+
         for tr in table_results:
             pA1, pA2 = tr["pair_a"]
             pB1, pB2 = tr["pair_b"]
             sA, sB = tr["score_a"], tr["score_b"]
 
-            st.session_state.history_pairs.append({pA1, pA2})
-            st.session_state.history_pairs.append({pB1, pB2})
+            st.session_state.history_pairs.append(frozenset({pA1, pA2}))
+            st.session_state.history_pairs.append(frozenset({pB1, pB2}))
 
             for p in [pA1, pA2]:
                 st.session_state.players[p]["jj"] += 1
@@ -217,47 +261,29 @@ elif st.session_state.step.startswith("round_"):
                 st.session_state.players[p]["p_plus"] += sB
                 st.session_state.players[p]["p_minus"] += sA
 
+            # Aplicar descuentos personalizados por amonestación
             for p in st.session_state.player_keys:
-                if round_penalties.get(p, False):
-                    st.session_state.players[p]["p_plus"] -= 20
+                if p in round_penalties:
+                    st.session_state.players[p]["p_plus"] -= round_penalties[p]
 
             for p in st.session_state.player_keys:
-                st.session_state.players[p]["diff"] = st.session_state.players[p]["p_plus"] - st.session_state.players[p]["p_minus"]
+                st.session_state.players[p]["diff"] = (
+                    st.session_state.players[p]["p_plus"] - st.session_state.players[p]["p_minus"]
+                )
 
             a_won_board = sA > sB
             b_won_board = sB > sA
 
             if a_won_board:
-                pA1_score_adj = sA - (20 if round_penalties.get(pA1, False) else 0)
-                if pA1_score_adj <= sB:
-                    st.session_state.players[pA1]["jp"] += 1
-                else:
-                    st.session_state.players[pA1]["jg"] += 1
-
-                pA2_score_adj = sA - (20 if round_penalties.get(pA2, False) else 0)
-                if pA2_score_adj <= sB:
-                    st.session_state.players[pA2]["jp"] += 1
-                else:
-                    st.session_state.players[pA2]["jg"] += 1
-
+                st.session_state.players[pA1]["jg"] += 1
+                st.session_state.players[pA2]["jg"] += 1
                 st.session_state.players[pB1]["jp"] += 1
                 st.session_state.players[pB2]["jp"] += 1
-
             elif b_won_board:
                 st.session_state.players[pA1]["jp"] += 1
                 st.session_state.players[pA2]["jp"] += 1
-
-                pB1_score_adj = sB - (20 if round_penalties.get(pB1, False) else 0)
-                if pB1_score_adj <= sA:
-                    st.session_state.players[pB1]["jp"] += 1
-                else:
-                    st.session_state.players[pB1]["jg"] += 1
-
-                pB2_score_adj = sB - (20 if round_penalties.get(pB2, False) else 0)
-                if pB2_score_adj <= sA:
-                    st.session_state.players[pB2]["jp"] += 1
-                else:
-                    st.session_state.players[pB2]["jg"] += 1
+                st.session_state.players[pB1]["jg"] += 1
+                st.session_state.players[pB2]["jg"] += 1
             else:
                 for p in [pA1, pA2, pB1, pB2]:
                     st.session_state.players[p]["jp"] += 1
@@ -307,3 +333,8 @@ elif st.session_state.step == "ranking":
         })
 
     st.dataframe(table_data, use_container_width=True)
+
+    if st.button("⬅️ Volver a la Ronda 6 para consultar o modificar datos"):
+        st.session_state.round_num = 6
+        st.session_state.step = "round_6"
+        st.rerun()

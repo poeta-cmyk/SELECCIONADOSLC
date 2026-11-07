@@ -135,11 +135,16 @@ elif st.session_state.step.startswith("round_"):
     r_num = st.session_state.round_num
     st.title(f"Selección de la Liga de Campeones - Ronda {r_num} de 6")
 
+    # Asegurar que todos los jugadores tengan la clave 'order' por seguridad
+    for p_name in st.session_state.players:
+        if "order" not in st.session_state.players[p_name]:
+            st.session_state.players[p_name]["order"] = 999
+
     # Botón de Ranking Acumulado accesible en todo momento
     with st.expander("📊 Ver Ranking y Tabla de Posiciones Acumulada"):
         sorted_preview = sorted(
             st.session_state.players.values(),
-            key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
+            key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))
         )
         preview_data = [{"Pos": i+1, "Jugador": p["name"], "JG": p["jg"], "JP": p["jp"], "P(+)": p["p_plus"], "P(-)": p["p_minus"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
         st.dataframe(preview_data, use_container_width=True)
@@ -170,7 +175,7 @@ elif st.session_state.step.startswith("round_"):
         else:
             sorted_players = sorted(
                 st.session_state.players.values(),
-                key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
+                key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))
             )
             ranked_names = [p["name"] for p in sorted_players]
 
@@ -250,7 +255,6 @@ elif st.session_state.step.startswith("round_"):
         st.session_state.scores_history[r_num] = table_results
 
         # Recalcular estadísticas limpiando acumulados previos de rondas >= r_num para evitar duplicidad al re-procesar
-        # Reiniciar acumuladores de jugadores
         for p in st.session_state.players:
             st.session_state.players[p]["jj"] = 0
             st.session_state.players[p]["jg"] = 0
@@ -314,7 +318,7 @@ elif st.session_state.step.startswith("round_"):
         # Actualizar el orden estricto basado en la clasificación actual
         sorted_after_proc = sorted(
             st.session_state.players.values(),
-            key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
+            key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))
         )
         for idx, p_obj in enumerate(sorted_after_proc):
             st.session_state.players[p_obj["name"]]["order"] = idx + 1
@@ -334,7 +338,7 @@ elif st.session_state.step == "ranking":
 
     final_sorted = sorted(
         st.session_state.players.values(),
-        key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
+        key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))
     )
 
     st.subheader("🎉 Podio de Ganadores")

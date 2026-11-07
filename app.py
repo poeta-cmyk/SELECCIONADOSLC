@@ -16,6 +16,8 @@ if "history_pairs" not in st.session_state:
     st.session_state.history_pairs = []
 if "penalties_history" not in st.session_state:
     st.session_state.penalties_history = {}
+if "scores_history" not in st.session_state:
+    st.session_state.scores_history = {}
 
 # --- PANTALLA 1: ACCESO ---
 if not st.session_state.authenticated:
@@ -55,6 +57,7 @@ elif st.session_state.step == "register":
     with b_col1:
         if st.button("🎲 Generar primera ronda (Automática / Sorteo)"):
             names_list = list(player_names.values())
+            random.shuffle(names_list)
             st.session_state.players = {
                 name: {
                     "name": name,
@@ -64,11 +67,11 @@ elif st.session_state.step == "register":
                     "p_plus": 0,
                     "p_minus": 0,
                     "diff": 0,
+                    "order": idx + 1
                 }
-                for name in names_list
+                for idx, name in enumerate(names_list)
             }
             st.session_state.player_keys = names_list
-            random.shuffle(names_list)
             st.session_state["tables_r1"] = [
                 [names_list[i], names_list[i+1], names_list[i+2], names_list[i+3]]
                 for i in range(0, 20, 4)
@@ -105,6 +108,9 @@ elif st.session_state.step == "register":
             if len(set(flat_manual)) < 20:
                 st.error("Error: Hay jugadores repetidos en las mesas. Cada uno debe ser único.")
             else:
+                flat_ordered = []
+                for mesa in manual_tables:
+                    flat_ordered.extend(mesa)
                 st.session_state.players = {
                     name: {
                         "name": name,
@@ -114,8 +120,9 @@ elif st.session_state.step == "register":
                         "p_plus": 0,
                         "p_minus": 0,
                         "diff": 0,
+                        "order": idx + 1
                     }
-                    for name in all_names
+                    for idx, name in enumerate(flat_ordered)
                 }
                 st.session_state.player_keys = all_names
                 st.session_state["tables_r1"] = manual_tables
@@ -132,10 +139,9 @@ elif st.session_state.step.startswith("round_"):
     with st.expander("📊 Ver Ranking y Tabla de Posiciones Acumulada"):
         sorted_preview = sorted(
             st.session_state.players.values(),
-            key=lambda x: (x["jg"], x["diff"]),
-            reverse=True
+            key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
         )
-        preview_data = [{"Pos": i+1, "Jugador": p["name"], "JG": p["jg"], "JP": p["jp"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
+        preview_data = [{"Pos": i+1, "Jugador": p["name"], "JG": p["jg"], "JP": p["jp"], "P(+)": p["p_plus"], "P(-)": p["p_minus"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
         st.dataframe(preview_data, use_container_width=True)
 
     # Sección Amonestados con monto libre/personalizado
@@ -157,7 +163,6 @@ elif st.session_state.step.startswith("round_"):
     if table_key_cache not in st.session_state:
         if r_num == 1:
             shuffled = list(st.session_state.player_keys)
-            random.shuffle(shuffled)
             st.session_state[table_key_cache] = [
                 [shuffled[i], shuffled[i+1], shuffled[i+2], shuffled[i+3]]
                 for i in range(0, 20, 4)
@@ -165,15 +170,13 @@ elif st.session_state.step.startswith("round_"):
         else:
             sorted_players = sorted(
                 st.session_state.players.values(),
-                key=lambda x: (x["jg"], x["diff"]),
-                reverse=True
+                key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
             )
             ranked_names = [p["name"] for p in sorted_players]
 
             current_tables = []
             for m in range(5):
                 table_group = ranked_names[m*4 : (m*4)+4]
-                # Emparejamiento interno estricto: 1º con 3º y 2º con 4º
                 p1 = table_group[0]
                 p2 = table_group[1]
                 p3 = table_group[2]
@@ -181,7 +184,6 @@ elif st.session_state.step.startswith("round_"):
 
                 # Control de repetición de pareja (Swiss pairing refinement)
                 if frozenset([p1, p3]) in st.session_state.history_pairs or frozenset([p2, p4]) in st.session_state.history_pairs:
-                    # Buscar alternativa en el grupo o intercambiar
                     for alt_idx in range(len(table_group)):
                         for alt_idx2 in range(alt_idx + 1, len(table_group)):
                             cand1 = table_group[alt_idx]
@@ -197,6 +199,7 @@ elif st.session_state.step.startswith("round_"):
             st.session_state[table_key_cache] = current_tables
 
     current_tables = st.session_state[table_key_cache]
+    saved_scores = st.session_state.get("scores_history", {}).get(r_num, [])
 
     # Captura de resultados por mesa dentro de un formulario para incluir los botones simétricos
     with st.form(key=f"form_round_{r_num}"):
@@ -204,17 +207,21 @@ elif st.session_state.step.startswith("round_"):
         for t_idx, table in enumerate(current_tables):
             st.markdown(f"### Mesa {t_idx + 1}")
             col_a, col_b = st.columns(2)
+            
+            default_s1 = saved_scores[t_idx]["score_a"] if t_idx < len(saved_scores) else 0
+            default_s2 = saved_scores[t_idx]["score_b"] if t_idx < len(saved_scores) else 0
+
             with col_a:
-                st.text(f"Pareja A: {table[0]} & {table[1]}")
-                score_a = st.number_input(f"Puntos Pareja A (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_a_{r_num}_{t_idx}")
+                st.text(f"Pareja A: {table[0]} & {table[2]}")
+                score_a = st.number_input(f"Puntos Pareja A (Mesa {t_idx + 1})", 0, 1000, int(default_s1), key=f"score_a_{r_num}_{t_idx}")
             with col_b:
-                st.text(f"Pareja B: {table[2]} & {table[3]}")
-                score_b = st.number_input(f"Puntos Pareja B (Mesa {t_idx + 1})", 0, 1000, 0, key=f"score_b_{r_num}_{t_idx}")
+                st.text(f"Pareja B: {table[1]} & {table[3]}")
+                score_b = st.number_input(f"Puntos Pareja B (Mesa {t_idx + 1})", 0, 1000, int(default_s2), key=f"score_b_{r_num}_{t_idx}")
             
             table_results.append({
-                "pair_a": [table[0], table[1]],
+                "pair_a": [table[0], table[2]],
                 "score_a": score_a,
-                "pair_b": [table[2], table[3]],
+                "pair_b": [table[1], table[3]],
                 "score_b": score_b
             })
             st.divider()
@@ -239,54 +246,78 @@ elif st.session_state.step.startswith("round_"):
 
     # Procesar avance de ronda
     if btn_next_action:
-        # Guardar amonestaciones de la ronda
-        if "penalties_history" not in st.session_state:
-            st.session_state.penalties_history = {}
         st.session_state.penalties_history[r_num] = round_penalties
+        st.session_state.scores_history[r_num] = table_results
 
-        for tr in table_results:
-            pA1, pA2 = tr["pair_a"]
-            pB1, pB2 = tr["pair_b"]
-            sA, sB = tr["score_a"], tr["score_b"]
+        # Recalcular estadísticas limpiando acumulados previos de rondas >= r_num para evitar duplicidad al re-procesar
+        # Reiniciar acumuladores de jugadores
+        for p in st.session_state.players:
+            st.session_state.players[p]["jj"] = 0
+            st.session_state.players[p]["jg"] = 0
+            st.session_state.players[p]["jp"] = 0
+            st.session_state.players[p]["p_plus"] = 0
+            st.session_state.players[p]["p_minus"] = 0
+            st.session_state.players[p]["diff"] = 0
 
-            st.session_state.history_pairs.append(frozenset({pA1, pA2}))
-            st.session_state.history_pairs.append(frozenset({pB1, pB2}))
+        st.session_state.history_pairs = []
 
-            for p in [pA1, pA2]:
-                st.session_state.players[p]["jj"] += 1
-                st.session_state.players[p]["p_plus"] += sA
-                st.session_state.players[p]["p_minus"] += sB
-            for p in [pB1, pB2]:
-                st.session_state.players[p]["jj"] += 1
-                st.session_state.players[p]["p_plus"] += sB
-                st.session_state.players[p]["p_minus"] += sA
+        # Reconstruir historial acumulado desde la ronda 1 hasta r_num
+        for past_r in range(1, r_num + 1):
+            past_results = st.session_state.scores_history.get(past_r, [])
+            past_pens = st.session_state.penalties_history.get(past_r, {})
 
-            # Aplicar descuentos personalizados por amonestación
-            for p in st.session_state.player_keys:
-                if p in round_penalties:
-                    st.session_state.players[p]["p_plus"] -= round_penalties[p]
+            for tr in past_results:
+                pA1, pA2 = tr["pair_a"]
+                pB1, pB2 = tr["pair_b"]
+                sA, sB = tr["score_a"], tr["score_b"]
 
-            for p in st.session_state.player_keys:
+                st.session_state.history_pairs.append(frozenset({pA1, pA2}))
+                st.session_state.history_pairs.append(frozenset({pB1, pB2}))
+
+                for p in [pA1, pA2]:
+                    st.session_state.players[p]["jj"] += 1
+                    st.session_state.players[p]["p_plus"] += sA
+                    st.session_state.players[p]["p_minus"] += sB
+                for p in [pB1, pB2]:
+                    st.session_state.players[p]["jj"] += 1
+                    st.session_state.players[p]["p_plus"] += sB
+                    st.session_state.players[p]["p_minus"] += sA
+
+                a_won_board = sA > sB
+                b_won_board = sB > sA
+
+                if a_won_board:
+                    st.session_state.players[pA1]["jg"] += 1
+                    st.session_state.players[pA2]["jg"] += 1
+                    st.session_state.players[pB1]["jp"] += 1
+                    st.session_state.players[pB2]["jp"] += 1
+                elif b_won_board:
+                    st.session_state.players[pA1]["jp"] += 1
+                    st.session_state.players[pA2]["jp"] += 1
+                    st.session_state.players[pB1]["jg"] += 1
+                    st.session_state.players[pB2]["jg"] += 1
+                else:
+                    for p in [pA1, pA2, pB1, pB2]:
+                        st.session_state.players[p]["jp"] += 1
+
+            # Aplicar penalizaciones de la ronda pasada
+            for p, pen_val in past_pens.items():
+                if p in st.session_state.players:
+                    st.session_state.players[p]["p_plus"] -= pen_val
+
+            # Actualizar diferencias de puntos
+            for p in st.session_state.players:
                 st.session_state.players[p]["diff"] = (
                     st.session_state.players[p]["p_plus"] - st.session_state.players[p]["p_minus"]
                 )
 
-            a_won_board = sA > sB
-            b_won_board = sB > sA
-
-            if a_won_board:
-                st.session_state.players[pA1]["jg"] += 1
-                st.session_state.players[pA2]["jg"] += 1
-                st.session_state.players[pB1]["jp"] += 1
-                st.session_state.players[pB2]["jp"] += 1
-            elif b_won_board:
-                st.session_state.players[pA1]["jp"] += 1
-                st.session_state.players[pA2]["jp"] += 1
-                st.session_state.players[pB1]["jg"] += 1
-                st.session_state.players[pB2]["jg"] += 1
-            else:
-                for p in [pA1, pA2, pB1, pB2]:
-                    st.session_state.players[p]["jp"] += 1
+        # Actualizar el orden estricto basado en la clasificación actual
+        sorted_after_proc = sorted(
+            st.session_state.players.values(),
+            key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
+        )
+        for idx, p_obj in enumerate(sorted_after_proc):
+            st.session_state.players[p_obj["name"]]["order"] = idx + 1
 
         if r_num < 6:
             st.session_state.round_num += 1
@@ -303,8 +334,7 @@ elif st.session_state.step == "ranking":
 
     final_sorted = sorted(
         st.session_state.players.values(),
-        key=lambda x: (x["jg"], x["diff"]),
-        reverse=True
+        key=lambda x: (-x["jg"], -x["diff"], -x["p_plus"], x["order"])
     )
 
     st.subheader("🎉 Podio de Ganadores")

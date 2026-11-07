@@ -135,7 +135,6 @@ elif st.session_state.step.startswith("round_"):
     r_num = st.session_state.round_num
     st.title(f"Selección de la Liga de Campeones - Ronda {r_num} de 6")
 
-    # Asegurar que todos los jugadores tengan la clave 'order' por seguridad
     for p_name in st.session_state.players:
         if "order" not in st.session_state.players[p_name]:
             st.session_state.players[p_name]["order"] = 999
@@ -182,12 +181,13 @@ elif st.session_state.step.startswith("round_"):
             current_tables = []
             for m in range(5):
                 table_group = ranked_names[m*4 : (m*4)+4]
-                p1 = table_group[0]
-                p2 = table_group[1]
-                p3 = table_group[2]
-                p4 = table_group[3]
+                # Estricto: 1º con 3º vs 2º con 4º
+                p1 = table_group[0] # 1ro
+                p2 = table_group[1] # 2do
+                p3 = table_group[2] # 3ro
+                p4 = table_group[3] # 4to
 
-                # Control de repetición de pareja (Swiss pairing refinement)
+                # Control de repetición de pareja
                 if frozenset([p1, p3]) in st.session_state.history_pairs or frozenset([p2, p4]) in st.session_state.history_pairs:
                     for alt_idx in range(len(table_group)):
                         for alt_idx2 in range(alt_idx + 1, len(table_group)):
@@ -199,6 +199,7 @@ elif st.session_state.step.startswith("round_"):
                                 p2, p4 = remaining[0], remaining[1]
                                 break
 
+                # Guardamos ordenados para que en la mesa se muestren exactamente: Pareja A (p1 & p3) vs Pareja B (p2 & p4)
                 current_tables.append([p1, p3, p2, p4])
 
             st.session_state[table_key_cache] = current_tables
@@ -206,7 +207,7 @@ elif st.session_state.step.startswith("round_"):
     current_tables = st.session_state[table_key_cache]
     saved_scores = st.session_state.get("scores_history", {}).get(r_num, [])
 
-    # Captura de resultados por mesa dentro de un formulario para incluir los botones simétricos
+    # Captura de resultados por mesa dentro de un formulario
     with st.form(key=f"form_round_{r_num}"):
         table_results = []
         for t_idx, table in enumerate(current_tables):
@@ -217,16 +218,16 @@ elif st.session_state.step.startswith("round_"):
             default_s2 = saved_scores[t_idx]["score_b"] if t_idx < len(saved_scores) else 0
 
             with col_a:
-                st.text(f"Pareja A: {table[0]} & {table[2]}")
+                st.text(f"Pareja A: {table[0]} & {table[1]}")
                 score_a = st.number_input(f"Puntos Pareja A (Mesa {t_idx + 1})", 0, 1000, int(default_s1), key=f"score_a_{r_num}_{t_idx}")
             with col_b:
-                st.text(f"Pareja B: {table[1]} & {table[3]}")
+                st.text(f"Pareja B: {table[2]} & {table[3]}")
                 score_b = st.number_input(f"Puntos Pareja B (Mesa {t_idx + 1})", 0, 1000, int(default_s2), key=f"score_b_{r_num}_{t_idx}")
             
             table_results.append({
-                "pair_a": [table[0], table[2]],
+                "pair_a": [table[0], table[1]],
                 "score_a": score_a,
-                "pair_b": [table[1], table[3]],
+                "pair_b": [table[2], table[3]],
                 "score_b": score_b
             })
             st.divider()
@@ -254,7 +255,7 @@ elif st.session_state.step.startswith("round_"):
         st.session_state.penalties_history[r_num] = round_penalties
         st.session_state.scores_history[r_num] = table_results
 
-        # Recalcular estadísticas limpiando acumulados previos de rondas >= r_num para evitar duplicidad al re-procesar
+        # Recalcular estadísticas limpiando acumulados previos
         for p in st.session_state.players:
             st.session_state.players[p]["jj"] = 0
             st.session_state.players[p]["jg"] = 0
@@ -304,7 +305,7 @@ elif st.session_state.step.startswith("round_"):
                     for p in [pA1, pA2, pB1, pB2]:
                         st.session_state.players[p]["jp"] += 1
 
-            # Aplicar penalizaciones de la ronda pasada
+            # Aplicar penalizaciones
             for p, pen_val in past_pens.items():
                 if p in st.session_state.players:
                     st.session_state.players[p]["p_plus"] -= pen_val
@@ -315,7 +316,7 @@ elif st.session_state.step.startswith("round_"):
                     st.session_state.players[p]["p_plus"] - st.session_state.players[p]["p_minus"]
                 )
 
-        # Actualizar el orden estricto basado en la clasificación actual
+        # Actualizar el orden estricto
         sorted_after_proc = sorted(
             st.session_state.players.values(),
             key=lambda x: (-x.get("jg", 0), -x.get("diff", 0), -x.get("p_plus", 0), x.get("order", 0))

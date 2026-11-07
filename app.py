@@ -139,7 +139,7 @@ elif st.session_state.step.startswith("round_"):
         if "order" not in st.session_state.players[p_name]:
             st.session_state.players[p_name]["order"] = 999
 
-    # Botón de Ranking Acumulado accesible en todo momento (con altura de 400 para mostrar los 20 jugadores)
+    # Botón de Ranking Acumulado accesible en todo momento
     with st.expander("📊 Ver Ranking y Tabla de Posiciones Acumulada"):
         sorted_preview = sorted(
             st.session_state.players.values(),
@@ -289,21 +289,34 @@ elif st.session_state.step.startswith("round_"):
                 a_won_board = sA > sB
                 b_won_board = sB > sA
 
+                # Evaluación de Ganados/Perdidos considerando penalizaciones individuales de esta ronda pasada
                 if a_won_board:
-                    st.session_state.players[pA1]["jg"] += 1
-                    st.session_state.players[pA2]["jg"] += 1
-                    st.session_state.players[pB1]["jp"] += 1
-                    st.session_state.players[pB2]["jp"] += 1
+                    # Pareja A ganó en la mesa de forma bruta
+                    for p_a in [pA1, pA2]:
+                        p_score_adj = sA - past_pens.get(p_a, 0)
+                        if p_score_adj <= sB:
+                            st.session_state.players[p_a]["jp"] += 1
+                        else:
+                            st.session_state.players[p_a]["jg"] += 1
+                    
+                    for p_b in [pB1, pB2]:
+                        st.session_state.players[p_b]["jp"] += 1
+
                 elif b_won_board:
-                    st.session_state.players[pA1]["jp"] += 1
-                    st.session_state.players[pA2]["jp"] += 1
-                    st.session_state.players[pB1]["jg"] += 1
-                    st.session_state.players[pB2]["jg"] += 1
+                    for p_a in [pA1, pA2]:
+                        st.session_state.players[p_a]["jp"] += 1
+
+                    for p_b in [pB1, pB2]:
+                        p_score_adj = sB - past_pens.get(p_b, 0)
+                        if p_score_adj <= sA:
+                            st.session_state.players[p_b]["jp"] += 1
+                        else:
+                            st.session_state.players[p_b]["jg"] += 1
                 else:
                     for p in [pA1, pA2, pB1, pB2]:
                         st.session_state.players[p]["jp"] += 1
 
-            # Aplicar penalizaciones
+            # Aplicar penalizaciones al acumulado de puntos a favor P(+)
             for p, pen_val in past_pens.items():
                 if p in st.session_state.players:
                     st.session_state.players[p]["p_plus"] -= pen_val
@@ -367,7 +380,7 @@ elif st.session_state.step == "ranking":
 
     st.dataframe(table_data, use_container_width=True, height=500)
 
-    if st.button("⬅️ Volver a la Ronda 6 para consultar o modificar datos"):
+    if st.button("⬅️ Volver al torneo para consultar o modificar datos"):
         st.session_state.round_num = 6
         st.session_state.step = "round_6"
         st.rerun()

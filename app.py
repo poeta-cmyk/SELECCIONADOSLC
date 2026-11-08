@@ -24,6 +24,11 @@ def save_state():
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state_to_save, f, ensure_ascii=False, indent=4)
 
+def reset_tournament():
+    if os.path.exists(STATE_FILE):
+        os.remove(STATE_FILE)
+    st.session_state.clear()
+
 # Inicializar Estado de la Sesión o Cargar desde Respaldo Local
 if "initialized" not in st.session_state:
     if os.path.exists(STATE_FILE):
@@ -197,7 +202,7 @@ elif st.session_state.step.startswith("round_"):
         preview_data = [{"Pos": i+1, "Jugador": p["name"], "JJ": p["jj"], "JG": p["jg"], "JP": p["jp"], "P(+)": p["p_plus"], "P(-)": p["p_minus"], "Dif": p["diff"]} for i, p in enumerate(sorted_preview)]
         st.dataframe(preview_data, use_container_width=True, height=400)
 
-    # Sección Amonestados con monto libre/personalizado
+    # Sección Amonestados con monto libre/personalizado (paso 20)
     with st.expander("⚠️ Jugadores Amonestados (Desplegar para registrar descuentos personalizados en esta ronda)"):
         st.write("Anote el monto exacto del descuento en puntos para cada jugador infractor en esta ronda:")
         round_penalties = {}
@@ -339,7 +344,7 @@ elif st.session_state.step.startswith("round_"):
                 a_won_board = sA > sB
                 b_won_board = sB > sA
 
-                # Evaluación de Ganados/Perdidos considerando penalizaciones individuales de esta ronda pasada
+                # Evaluación de Ganados/Perdidos considerando penalizaciones individuales
                 if a_won_board:
                     for p_a in [pA1, pA2]:
                         p_score_adj = sA - past_pens.get(p_a, 0)
@@ -431,8 +436,15 @@ elif st.session_state.step == "ranking":
 
     st.dataframe(table_data, use_container_width=True, height=500)
 
-    if st.button("⬅️ Volver al torneo para consultar o modificar datos"):
-        st.session_state.round_num = 6
-        st.session_state.step = "round_6"
-        save_state()
-        st.rerun()
+    st.divider()
+    c_back, c_reset = st.columns(2)
+    with c_back:
+        if st.button("⬅️ Volver al torneo para consultar o modificar datos"):
+            st.session_state.round_num = 6
+            st.session_state.step = "round_6"
+            save_state()
+            st.rerun()
+    with c_reset:
+        if st.button("🔴 Finalizar Torneo y Borrar Datos (Volver al Inicio)"):
+            reset_tournament()
+            st.rerun()

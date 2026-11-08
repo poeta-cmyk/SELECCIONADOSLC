@@ -156,7 +156,7 @@ elif st.session_state.step.startswith("round_"):
         for idx_p, p in enumerate(st.session_state.player_keys):
             with cols_pen[idx_p % 4]:
                 current_val = st.session_state.get("penalties_history", {}).get(r_num, {}).get(p, 0)
-                pen_val = st.number_input(f"{p}", min_value=0, max_value=200, value=current_val, step=5, key=f"pen_{r_num}_{p}")
+                pen_val = st.number_input(f"{p}", min_value=0, max_value=200, value=current_val, step=20, key=f"pen_{r_num}_{p}")
                 if pen_val > 0:
                     round_penalties[p] = pen_val
 

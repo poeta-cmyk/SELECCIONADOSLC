@@ -1,9 +1,55 @@
 import random
+import json
+import os
 import streamlit as st
 
 st.set_page_config(page_title="Selección de la Liga de Campeones", layout="wide")
 
-# Inicializar Estado de la Sesión
+STATE_FILE = "torneo_estado.json"
+
+def save_state():
+    state_to_save = {
+        "authenticated": st.session_state.get("authenticated", False),
+        "step": st.session_state.get("step", "login"),
+        "players": st.session_state.get("players", {}),
+        "round_num": st.session_state.get("round_num", 1),
+        "history_pairs": [list(pair) for pair in st.session_state.get("history_pairs", [])],
+        "penalties_history": st.session_state.get("penalties_history", {}),
+        "scores_history": st.session_state.get("scores_history", {}),
+        "player_keys": st.session_state.get("player_keys", []),
+    }
+    tables = {k: v for k, v in st.session_state.items() if k.startswith("tables_r")}
+    state_to_save["tables"] = tables
+    
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state_to_save, f, ensure_ascii=False, indent=4)
+
+# Inicializar Estado de la Sesión o Cargar desde Respaldo Local
+if "initialized" not in st.session_state:
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                st.session_state.authenticated = data.get("authenticated", False)
+                st.session_state.step = data.get("step", "login")
+                st.session_state.players = data.get("players", {})
+                st.session_state.round_num = data.get("round_num", 1)
+                st.session_state.history_pairs = [frozenset(pair) for pair in data.get("history_pairs", [])]
+                
+                raw_pens = data.get("penalties_history", {})
+                st.session_state.penalties_history = {int(k) if str(k).isdigit() else k: v for k, v in raw_pens.items()}
+                
+                raw_scores = data.get("scores_history", {})
+                st.session_state.scores_history = {int(k) if str(k).isdigit() else k: v for k, v in raw_scores.items()}
+                
+                st.session_state.player_keys = data.get("player_keys", [])
+                
+                for k, v in data.get("tables", {}).items():
+                    st.session_state[k] = v
+        except Exception:
+            pass
+    st.session_state.initialized = True
+
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "step" not in st.session_state:
@@ -27,6 +73,7 @@ if not st.session_state.authenticated:
         if password == "LC1234":
             st.session_state.authenticated = True
             st.session_state.step = "register"
+            save_state()
             st.rerun()
         else:
             st.error("Clave incorrecta. Intente de nuevo.")
@@ -78,6 +125,7 @@ elif st.session_state.step == "register":
             ]
             st.session_state.round_num = 1
             st.session_state.step = "round_1"
+            save_state()
             st.rerun()
 
     with b_col2:
@@ -128,6 +176,7 @@ elif st.session_state.step == "register":
                 st.session_state["tables_r1"] = manual_tables
                 st.session_state.round_num = 1
                 st.session_state.step = "round_1"
+                save_state()
                 st.rerun()
 
 # --- MOTOR DE RONDAS Y AMONESTADOS ---
@@ -246,6 +295,7 @@ elif st.session_state.step.startswith("round_"):
     if btn_back:
         st.session_state.round_num -= 1
         st.session_state.step = f"round_{st.session_state.round_num}"
+        save_state()
         st.rerun()
 
     # Procesar avance de ronda
@@ -291,7 +341,6 @@ elif st.session_state.step.startswith("round_"):
 
                 # Evaluación de Ganados/Perdidos considerando penalizaciones individuales de esta ronda pasada
                 if a_won_board:
-                    # Pareja A ganó en la mesa de forma bruta
                     for p_a in [pA1, pA2]:
                         p_score_adj = sA - past_pens.get(p_a, 0)
                         if p_score_adj <= sB:
@@ -338,9 +387,11 @@ elif st.session_state.step.startswith("round_"):
         if r_num < 6:
             st.session_state.round_num += 1
             st.session_state.step = f"round_{st.session_state.round_num}"
+            save_state()
             st.rerun()
         else:
             st.session_state.step = "ranking"
+            save_state()
             st.rerun()
 
 # --- PANTALLA 3: RANKING FINAL Y ANIMACIÓN ---
@@ -383,4 +434,5 @@ elif st.session_state.step == "ranking":
     if st.button("⬅️ Volver al torneo para consultar o modificar datos"):
         st.session_state.round_num = 6
         st.session_state.step = "round_6"
+        save_state()
         st.rerun()
